@@ -1,0 +1,22 @@
+{
+  "name": "math-utils-single-file",
+  "version": "1.0.0",
+  "description": "A single-file JavaScript math utilities library with built-in tests",
+  "main": "mathUtils.js",
+  "scripts": {
+    "test": "node mathUtils.js test",
+    "demo": "node mathUtils.js demo",
+    "validate": "node -c mathUtils.js"
+  },
+  "keywords": [
+    "math",
+    "utilities",
+    "single-file",
+    "ci-cd"
+  ],
+  "author": "Your Name",
+  "license": "MIT",
+  "engines": {
+    "node": ">=16.0.0"
+  }
+}
