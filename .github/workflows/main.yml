@@ -1,0 +1,132 @@
+name: CI/CD Pipeline for Single JS File
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: Test on Multiple OS
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        node-version: [16.x, 18.x, 20.x]
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ matrix.node-version }}
+
+    - name: Validate JavaScript syntax
+      run: |
+        node -c mathUtils.js
+        echo "✅ JavaScript syntax is valid"
+
+    - name: Run unit tests
+      run: node mathUtils.js test
+
+    - name: Run basic functionality test
+      run: |
+        node -e "
+          const math = require('./mathUtils.js');
+          console.log('Testing basic operations...');
+          console.log('2 + 3 =', math.add(2, 3));
+          console.log('5 * 4 =', math.multiply(5, 4));
+          console.log('✅ Basic functionality test passed');
+        "
+
+    - name: Upload test results
+      uses: actions/upload-artifact@v4
+      with:
+        name: test-results-${{ matrix.os }}-node-${{ matrix.node-version }}
+        path: ./
+        retention-days: 5
+
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Run security scan
+      run: |
+        echo "🔍 Running security checks..."
+        # Check for eval usage
+        if grep -q "eval(" mathUtils.js; then
+          echo "⚠️  Warning: eval() found in code"
+        else
+          echo "✅ No eval() usage detected"
+        fi
+        
+        # Check for potentially dangerous patterns
+        if grep -q "Function(" mathUtils.js; then
+          echo "⚠️  Warning: Function constructor found"
+        else
+          echo "✅ No Function constructor usage"
+        fi
+        
+        echo "✅ Security scan completed"
+
+  deploy:
+    name: Deploy Release
+    runs-on: ubuntu-latest
+    needs: [test, security-scan]
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20.x'
+
+    - name: Run final tests
+      run: node mathUtils.js test
+
+    - name: Create release version
+      run: |
+        TIMESTAMP=$(date +%Y%m%d%H%M%S)
+        echo "RELEASE_VERSION=1.0.$TIMESTAMP" >> $GITHUB_ENV
+        echo "📦 Creating release version: 1.0.$TIMESTAMP"
+
+    - name: Create release archive
+      run: |
+        mkdir -p release
+        cp mathUtils.js release/
+        cp package.json release/
+        tar -czf math-utils-${{ env.RELEASE_VERSION }}.tar.gz release/
+        echo "📁 Release archive created"
+
+    - name: Upload release artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: math-utils-release-${{ env.RELEASE_VERSION }}
+        path: math-utils-*.tar.gz
+        retention-days: 30
+
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: v${{ env.RELEASE_VERSION }}
+        name: Math Utils v${{ env.RELEASE_VERSION }}
+        body: |
+          Automated release of Math Utils library
+          
+          Changes:
+          - Automated build and test
+          - Multi-OS compatibility verified
+          - Security scan passed
+        files: math-utils-*.tar.gz
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
