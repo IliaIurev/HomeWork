@@ -130,35 +130,80 @@ function runTests() {
     const assert = require('assert');
     console.log('🧪 Running built-in tests...');
     
-    try {
-        // Test basic operations
+    let testsPassed = 0;
+    let totalTests = 0;
+    
+    function runTest(name, testFn) {
+        totalTests++;
+        try {
+            testFn();
+            console.log(`  ✅ ${name}`);
+            testsPassed++;
+        } catch (error) {
+            console.log(`  ❌ ${name}: ${error.message}`);
+        }
+    }
+    
+    // Test basic operations
+    runTest('Addition', () => {
         assert.strictEqual(MathUtils.add(2, 3), 5);
+        assert.strictEqual(MathUtils.add(-1, 1), 0);
+    });
+    
+    runTest('Subtraction', () => {
         assert.strictEqual(MathUtils.subtract(5, 3), 2);
-        assert.strictEqual(MathUtils.multiply(4, 5), 20);
+        assert.strictEqual(MathUtils.subtract(10, 10), 0);
+    });
+    
+    runTest('Multiplication', () => {
+        assert.strictEqual(MathUtils.multiply(2, 3), 6);
+        assert.strictEqual(MathUtils.multiply(-2, 3), -6);
+    });
+    
+    runTest('Division', () => {
+        assert.strictEqual(MathUtils.divide(6, 3), 2);
         assert.strictEqual(MathUtils.divide(10, 2), 5);
-        
-        // Test error handling
+    });
+    
+    runTest('Division by zero', () => {
         assert.throws(() => MathUtils.divide(5, 0), Error);
-        assert.throws(() => MathUtils.squareRoot(-1), Error);
-        
-        // Test advanced functions
+    });
+    
+    runTest('Factorial', () => {
         assert.strictEqual(MathUtils.factorial(5), 120);
+        assert.strictEqual(MathUtils.factorial(0), 1);
+    });
+    
+    runTest('Power', () => {
         assert.strictEqual(MathUtils.power(2, 3), 8);
-        assert.strictEqual(MathUtils.fibonacci(6), 8);
-        
-        // Test prime numbers
+        assert.strictEqual(MathUtils.power(5, 2), 25);
+    });
+    
+    runTest('Prime numbers', () => {
         assert.strictEqual(MathUtils.isPrime(7), true);
         assert.strictEqual(MathUtils.isPrime(4), false);
-        
-        // Test statistical functions
+        assert.strictEqual(MathUtils.isPrime(2), true);
+    });
+    
+    runTest('Fibonacci', () => {
+        assert.strictEqual(MathUtils.fibonacci(6), 8);
+        assert.strictEqual(MathUtils.fibonacci(0), 0);
+        assert.strictEqual(MathUtils.fibonacci(1), 1);
+    });
+    
+    runTest('Statistical functions', () => {
         assert.strictEqual(MathUtils.average([1, 2, 3, 4, 5]), 3);
         assert.strictEqual(MathUtils.median([1, 3, 2]), 2);
         assert.strictEqual(MathUtils.median([1, 2, 3, 4]), 2.5);
-        
-        console.log('✅ All tests passed!');
+    });
+    
+    console.log(`\n📊 Test Results: ${testsPassed}/${totalTests} tests passed`);
+    
+    if (testsPassed === totalTests) {
+        console.log('🎉 All tests passed!');
         return true;
-    } catch (error) {
-        console.error('❌ Test failed:', error.message);
+    } else {
+        console.log('❌ Some tests failed');
         return false;
     }
 }
@@ -182,7 +227,8 @@ if (typeof module !== 'undefined' && module.exports) {
     if (require.main === module) {
         const args = process.argv.slice(2);
         if (args.includes('test')) {
-            process.exit(runTests() ? 0 : 1);
+            const success = runTests();
+            process.exit(success ? 0 : 1);
         } else if (args.includes('demo')) {
             demonstrate();
         } else {

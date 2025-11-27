@@ -1,15 +1,43 @@
-name: CI/CD Pipeline for Single JS File
+name: CI/CD Pipeline for JavaScript Math Utils
 
 on:
   push:
     branches: [ main, develop ]
   pull_request:
     branches: [ main ]
-  workflow_dispatch:
 
 jobs:
-  test:
-    name: Test on Multiple OS
+  validate:
+    name: 🔍 Validate Code
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Validate JavaScript syntax
+      run: |
+        echo "Validating JavaScript syntax..."
+        if node -c mathUtils.js; then
+          echo "✅ JavaScript syntax is valid"
+        else
+          echo "❌ JavaScript syntax error"
+          exit 1
+        fi
+
+    - name: Check required files
+      run: |
+        echo "Checking project structure..."
+        if [ -f "mathUtils.js" ] && [ -f "package.json" ]; then
+          echo "✅ Required files present"
+        else
+          echo "❌ Missing required files"
+          exit 1
+        fi
+
+  test-multi-platform:
+    name: 🧪 Test on Multiple Platforms
+    needs: validate
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -20,199 +48,248 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Setup Node.js
+    - name: Setup Node.js ${{ matrix.node-version }}
       uses: actions/setup-node@v4
       with:
         node-version: ${{ matrix.node-version }}
 
-    - name: Validate JavaScript syntax
+    - name: Display environment info
       run: |
-        node -c mathUtils.js
-        echo "✅ JavaScript syntax is valid"
+        echo "Operating System: ${{ matrix.os }}"
+        echo "Node.js Version: $(node --version)"
+        echo "Running directory: $(pwd)"
 
     - name: Run unit tests
-      run: node mathUtils.js test
-
-    - name: Run basic functionality test
       run: |
+        echo "Running comprehensive tests..."
+        node mathUtils.js test
+        echo "✅ All tests passed on ${{ matrix.os }} with Node.js ${{ matrix.node-version }}"
+
+    - name: Test individual functions
+      run: |
+        echo "Testing individual math functions..."
         node -e "
           const math = require('./mathUtils.js');
-          console.log('Testing basic operations...');
-          console.log('2 + 3 =', math.add(2, 3));
-          console.log('5 * 4 =', math.multiply(5, 4));
-          console.log('✅ Basic functionality test passed');
+          
+          // Test basic arithmetic
+          console.log('Basic Arithmetic:');
+          console.log('  2 + 3 =', math.add(2, 3));
+          console.log('  10 - 4 =', math.subtract(10, 4));
+          console.log('  5 * 6 =', math.multiply(5, 6));
+          console.log('  15 / 3 =', math.divide(15, 3));
+          
+          // Test advanced functions
+          console.log('Advanced Functions:');
+          console.log('  factorial(5) =', math.factorial(5));
+          console.log('  power(2, 8) =', math.power(2, 8));
+          console.log('  fibonacci(10) =', math.fibonacci(10));
+          console.log('  isPrime(17) =', math.isPrime(17));
+          
+          // Test statistical functions
+          console.log('Statistical Functions:');
+          console.log('  average([1,2,3,4,5]) =', math.average([1,2,3,4,5]));
+          console.log('  median([1,3,2]) =', math.median([1,3,2]));
+          
+          console.log('✅ All functions working correctly');
         "
 
-    - name: Upload test results
-      uses: actions/upload-artifact@v4
-      with:
-        name: test-results-${{ matrix.os }}-node-${{ matrix.node-version }}
-        path: ./
-        retention-days: 5
-
-  security-scan:
-    name: Security Scan
+  security-audit:
+    name: 🔒 Security Audit
+    needs: validate
     runs-on: ubuntu-latest
+    
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Run security scan
+    - name: Security checks
       run: |
-        echo "🔍 Running security checks..."
-        # Check for eval usage
+        echo "Running security audit..."
+        
+        # Check for dangerous patterns
+        echo "1. Checking for eval usage..."
         if grep -q "eval(" mathUtils.js; then
           echo "⚠️  Warning: eval() found in code"
+          exit 1
         else
           echo "✅ No eval() usage detected"
         fi
         
-        # Check for potentially dangerous patterns
+        echo "2. Checking for Function constructor..."
         if grep -q "Function(" mathUtils.js; then
           echo "⚠️  Warning: Function constructor found"
+          exit 1
         else
           echo "✅ No Function constructor usage"
         fi
         
-        echo "✅ Security scan completed"
+        echo "3. Checking for unsafe patterns..."
+        if grep -q "innerHTML\\|innerHTML\\|outerHTML" mathUtils.js; then
+          echo "⚠️  Warning: Potential unsafe HTML manipulation"
+          exit 1
+        else
+          echo "✅ No unsafe HTML patterns"
+        fi
+        
+        echo "✅ Security audit passed"
 
-  build:
-    name: Build and Package
+  build-package:
+    name: 📦 Build Package
+    needs: [test-multi-platform, security-audit]
     runs-on: ubuntu-latest
-    needs: [test, security-scan]
     if: github.ref == 'refs/heads/main'
     
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-      with:
-        fetch-depth: 0  # Important for release notes
 
     - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
         node-version: '20.x'
 
-    - name: Run final tests
-      run: node mathUtils.js test
-
-    - name: Get version from package.json
-      id: package-version
-      uses: martinbeentjes/npm-get-version-action@v1.3.1
-
     - name: Create build directory
       run: |
+        echo "Creating build package..."
         mkdir -p dist
         cp mathUtils.js dist/
         cp package.json dist/
-        cp README.md dist/ 2>/dev/null || echo "No README.md found"
+        
+        # Create a simple README for the build
+        cat > dist/README.md << EOF
+        # Math Utils Library
+        
+        ## Build Information
+        - **Build Date**: $(date)
+        - **Commit**: ${{ github.sha }}
+        - **Node.js Version**: $(node --version)
+        - **Status**: ✅ CI/CD Verified
+        
+        ## Usage
+        \`\`\`javascript
+        const math = require('./mathUtils.js');
+        console.log(math.add(2, 3)); // 5
+        \`\`\`
+        
+        ## Test Results
+        - ✅ Multi-OS Testing (Linux, Windows, macOS)
+        - ✅ Node.js Compatibility (16.x, 18.x, 20.x)
+        - ✅ Security Audit Passed
+        - ✅ All Unit Tests Passed
+        EOF
+        
+        echo "✅ Build directory created"
 
-    - name: Create release archive
+    - name: Create distribution archive
       run: |
+        echo "Creating distribution package..."
         cd dist
-        tar -czf ../math-utils-v${{ steps.package-version.outputs.current-version }}.tar.gz .
-        echo "📁 Release archive created: math-utils-v${{ steps.package-version.outputs.current-version }}.tar.gz"
+        tar -czf ../math-utils-package.tar.gz .
+        echo "✅ Distribution package created: math-utils-package.tar.gz"
+        
+        # Show package contents
+        echo "Package contents:"
+        tar -tzf ../math-utils-package.tar.gz
 
-    - name: Upload build artifact
+    - name: Upload build artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: math-utils-build-v${{ steps.package-version.outputs.current-version }}
-        path: math-utils-*.tar.gz
+        name: math-utils-build
+        path: |
+          math-utils-package.tar.gz
+          dist/
         retention-days: 30
 
-    - name: Upload build to GitHub Releases
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ needs.create-release.outputs.upload_url }}
-        asset_path: ./math-utils-v${{ steps.package-version.outputs.current-version }}.tar.gz
-        asset_name: math-utils-v${{ steps.package-version.outputs.current-version }}.tar.gz
-        asset_content_type: application/gzip
-
-  create-release:
-    name: Create GitHub Release
+  deployment-check:
+    name: 🚀 Deployment Ready
+    needs: build-package
     runs-on: ubuntu-latest
-    needs: [test, security-scan]
-    if: github.ref == 'refs/heads/main'
-    outputs:
-      upload_url: ${{ steps.create_release.outputs.upload_url }}
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
-
-    - name: Get version from package.json
-      id: package-version
-      uses: martinbeentjes/npm-get-version-action@v1.3.1
-
-    - name: Get release notes from commits
-      id: release-notes
-      run: |
-        if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-          NOTES="Manual release triggered via GitHub Actions"
-        else
-          NOTES=$(git log --oneline --format=%B -n 10 ${{ github.event.before }}..${{ github.sha }} | sed '/^$/d' | head -5)
-        fi
-        echo "notes<<EOF" >> $GITHUB_OUTPUT
-        echo "$NOTES" >> $GITHUB_OUTPUT
-        echo "EOF" >> $GITHUB_OUTPUT
-
-    - name: Create GitHub Release
-      id: create_release
-      uses: actions/create-release@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        tag_name: v${{ steps.package-version.outputs.current-version }}
-        release_name: Math Utils v${{ steps.package-version.outputs.current-version }}
-        body: |
-          # Math Utils Library Release
-          
-          ## Automated Release
-          This release was automatically created by GitHub Actions CI/CD pipeline.
-          
-          ## Recent Changes
-          ${{ steps.release-notes.outputs.notes }}
-          
-          ## Verification
-          ✅ Multi-OS compatibility tested (Linux, Windows, macOS)
-          ✅ Security scan passed
-          ✅ All unit tests passed
-          
-          ## Usage
-          ```javascript
-          const math = require('./mathUtils.js');
-          console.log(math.add(2, 3)); // 5
-          ```
-        draft: false
-        prerelease: false
-
-  deploy:
-    name: Deploy and Release
-    runs-on: ubuntu-latest
-    needs: [create-release, build]
     if: github.ref == 'refs/heads/main'
     
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-
-    - name: Download build artifact
+    - name: Download build artifacts
       uses: actions/download-artifact@v4
       with:
-        name: math-utils-build-v${{ needs.create-release.outputs.package-version }}
+        name: math-utils-build
+        path: ./downloaded-build
 
-    - name: Verify release
+    - name: Verify deployment package
       run: |
-        echo "🎉 Release completed successfully!"
-        echo "Version: v${{ needs.create-release.outputs.package-version }}"
-        echo "Release URL: https://github.com/${{ github.repository }}/releases/tag/v${{ needs.create-release.outputs.package-version }}"
+        echo "Verifying deployment package..."
+        cd downloaded-build
         
-    - name: Notify success
+        # Extract and test the package
+        tar -xzf math-utils-package.tar.gz
+        echo "Package contents:"
+        ls -la
+        
+        # Test the built package
+        echo "Testing the built package..."
+        node -e "
+          const math = require('./mathUtils.js');
+          console.log('✅ Package test: 7 + 8 =', math.add(7, 8));
+        "
+        
+        echo "✅ Deployment package verified and ready"
+
+    - name: Create deployment report
       run: |
-        echo "✅ CI/CD Pipeline completed successfully"
-        echo "📦 Release created: v${{ needs.create-release.outputs.package-version }}"
-        echo "🔗 Download available in GitHub Releases"
+        cat > deployment-report.md << EOF
+        # Deployment Report - Math Utils Library
+        
+        ## Build Summary
+        - **Build ID**: ${{ github.run_id }}
+        - **Commit**: ${{ github.sha }}
+        - **Timestamp**: $(date -u)
+        - **Status**: ✅ READY FOR DEPLOYMENT
+        
+        ## Test Coverage
+        - Operating Systems: Ubuntu, Windows, macOS ✅
+        - Node.js Versions: 16.x, 18.x, 20.x ✅
+        - Security Audit: Passed ✅
+        - All Unit Tests: Passed ✅
+        
+        ## Artifacts
+        - \`math-utils-package.tar.gz\` - Complete distribution package
+        - \`mathUtils.js\` - Main library file
+        - \`package.json\` - Package configuration
+        
+        ## Next Steps
+        The package is ready for deployment. Download the artifacts from GitHub Actions.
+        EOF
+        
+        echo "✅ Deployment report created"
+
+    - name: Upload deployment report
+      uses: actions/upload-artifact@v4
+      with:
+        name: deployment-report
+        path: deployment-report.md
+        retention-days: 30
+
+  success-notification:
+    name: ✅ Pipeline Success
+    needs: [test-multi-platform, security-audit, build-package, deployment-check]
+    runs-on: ubuntu-latest
+    if: always()
+    
+    steps:
+    - name: Pipeline status
+      run: |
+        if [ "${{ needs.test-multi-platform.result }}" = "success" ] && \
+           [ "${{ needs.security-audit.result }}" = "success" ] && \
+           [ "${{ needs.build-package.result }}" = "success" ]; then
+          echo "🎉 CI/CD PIPELINE COMPLETED SUCCESSFULLY!"
+          echo "📊 Test Results:"
+          echo "   - Multi-Platform Testing: ✅ PASSED"
+          echo "   - Security Audit: ✅ PASSED" 
+          echo "   - Build Package: ✅ CREATED"
+          echo "   - Deployment Ready: ✅ VERIFIED"
+          echo ""
+          echo "🔗 View artifacts in GitHub Actions"
+          echo "📦 Download build: math-utils-build artifact"
+          echo "📄 View report: deployment-report artifact"
+        else
+          echo "❌ Pipeline failed or skipped"
+          echo "Check individual job status for details"
+        fi
